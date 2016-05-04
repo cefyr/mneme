@@ -6,6 +6,7 @@ import os.path
 from os.path import exists, join
 import re
 import subprocess
+import matplotlib.colors as colors
 
 from PyQt4 import QtGui, QtWebKit
 from PyQt4.QtCore import pyqtSignal, Qt, QEvent
@@ -117,7 +118,9 @@ class IndexFrame(QtGui.QWidget):
         body = generate_html_body(self.visible_entries,
                                   self.htmltemplates.tags,
                                   self.htmltemplates.entry,
+                                  self.htmltemplates.progress,
                                   self.settings['entry length template'],
+                                  self.settings['entry progress template'],
                                   self.settings['tag colors'])
         self.webview.setHtml(self.htmltemplates.index_page.format(body=body, css=self.css))
         if keep_position:
@@ -148,10 +151,10 @@ class IndexFrame(QtGui.QWidget):
             if len(arg) == 2 and arg[1] == 'a':
                 sortarg = 0
             self.old_pos = self.webview.page().mainFrame().scrollBarValue(Qt.Vertical)
-            entry_template = '<div class="list_entry"><span class="tag" style="background-color:{color};">{tagname}</span><span class="length">({count:,})</span></div>'
+            entry_template = '<div class="list_entry"><span class="tag" style="background-color:{color};">{tagname}</span><span class="length">({count:,})</span><span class="progress">[{current_page:,}/{length:,}]</span></div>'
             t_entries = (entry_template.format(color=self.settings['tag colors'].get(tag, '#677'),
-                                               tagname=tag, count=num)
-                         for tag, num in sorted(self.get_tags(), key=itemgetter(sortarg), reverse=sortarg))
+                                               tagname=tag, count=num, current_page=curr_pg, length=ln)
+                         for tag, num, curr_pg, ln in sorted(self.get_tags(), key=itemgetter(sortarg), reverse=sortarg))
             body = '<br>'.join(t_entries)
             html = '<style type="text/css">{css}</style>\
                     <body><div id="taglist">{body}</div></body>'.format(body=body, css=self.css)
@@ -309,7 +312,7 @@ class IndexFrame(QtGui.QWidget):
             self.print_('{} edits reverted'.format(len(undoitem)))
             return
         replace_tags = re.fullmatch(r't\*\s*(.*?)\s*,\s*(.*?)\s*', arg)
-        main_data = re.fullmatch(r'[dtn](\d+)(.*)', arg)
+        main_data = re.fullmatch(r'[dtnlp](\d+)(.*)', arg)
         # Replace/add/remove a bunch of tags
         if replace_tags:
             oldtag, newtag = replace_tags.groups()
@@ -339,12 +342,12 @@ class IndexFrame(QtGui.QWidget):
                 self.error('Index out of range')
                 return
             payload = main_data.group(2).strip()
-            category = {'d': 'description', 'n': 'title', 't': 'tags'}[arg[0]]
+            category = {'d': 'description', 'n': 'title', 't': 'tags', 'l': 'length', 'p': 'current_page'}[arg[0]]
             # No data specified, so the current is provided instead
             if not payload:
                 data = getattr(self.visible_entries[entry_id], category)
                 new = ', '.join(sorted(data)) if arg[0] == 't' else data
-                self.set_terminal_text('e' + arg.strip() + ' ' + new)
+                self.set_terminal_text('e' + arg.strip() + ' ' + str(new))
             else:
                 index = self.visible_entries[entry_id][0]
                 entries = taggedlist.edit_entry(index,
@@ -414,7 +417,7 @@ class IndexFrame(QtGui.QWidget):
                        os.path.splitext(fname)[0].replace('-', ' '))
         try:
             open(fullpath, 'a').close()
-            write_json(metadatafile, {'title': title, 'description': '', 'tags': tags})
+            write_json(metadatafile, {'title': title, 'description': '', 'tags': tags, 'length': '1', 'current_page': '0'})
         except Exception as e:
             self.error('Couldn\'t create the files: {}'.format(str(e)))
         else:
@@ -467,11 +470,12 @@ class IndexFrame(QtGui.QWidget):
 
 
 def load_html_templates():
-    html = namedtuple('HTMLTemplates', 'entry index_page tags')
+    html = namedtuple('HTMLTemplates', 'entry index_page tags progress')
     path = lambda fname: local_path(join('templates', fname))
     return html(read_file(path('entry_template.html')),
                 read_file(path('index_page_template.html')),
-                read_file(path('tags_template.html')))
+                read_file(path('tags_template.html')),
+                read_file(path('progress_template.html')))
 
 
 @taggedlist.generate_entrylist
@@ -485,6 +489,8 @@ def index_stories(path):
         ('tags', {'filter': 'tags', 'parser': 'tags'}),
         ('description', {'filter': 'text', 'parser': 'text'}),
         ('wordcount', {'filter': 'number'}),
+        ('current_page', {'filter': 'number', 'parser': 'text'}),
+        ('length', {'filter': 'number', 'parser': 'text'}),
         ('file', {}),
         ('lastmodified', {'filter': 'number'}),
         ('metadatafile', {}),
@@ -498,13 +504,16 @@ def index_stories(path):
                 frozenset(metadata['tags']),
                 metadata['description'],
                 len(re.findall(r'\S+', read_file(fname))),
+                int(metadata['current_page']),
+                int(metadata['length']),
                 fname,
                 os.path.getmtime(fname),
                 metadatafile)
                for metadata, fname, metadatafile in files)
     return attributes, entries
 
-def generate_html_body(visible_entries, tagstemplate, entrytemplate, entrylengthtemplate, tagcolors):
+
+def generate_html_body(visible_entries, tagstemplate, entrytemplate, progresstemplate_row, entrylengthtemplate, progresstemplate_part, tagcolors):
     """
     Return html generated from the visible entries.
     """
@@ -515,11 +524,28 @@ def generate_html_body(visible_entries, tagstemplate, entrytemplate, entrylength
             for t in sorted(tags))
     def format_desc(desc):
         return desc if desc else '<span class="empty_desc">[no desc]</span>'
+
+    def format_progress(hexcolor0, hexcolor1, formstring, entry_current_page, entry_length):
+        ratio = 1.0 * int(entry_current_page) / int(entry_length)
+        # Do stuff with color diff 
+        color0 = colors.hex2color(hexcolor0)
+        color1 = colors.hex2color(hexcolor1)
+        color_red = ratio * (color1[0] - color0[0]) + color0[0]
+        color_green = ratio * (color1[1] - color0[1]) + color0[1]
+        color_blue = ratio * (color1[2] - color0[2]) + color0[2]
+        color_str = colors.rgb2hex((color_red, color_green, color_blue))
+        return progresstemplate_row.format(progresscolor=color_str,
+                                           current_page = int(entry_current_page), 
+                                           length=int(entry_length))
     entrytemplate = entrytemplate.format(lengthformatstr=entrylengthtemplate)
     entries = (entrytemplate.format(title=entry.title, id=n,
                                     tags=format_tags(entry.tags),
                                     desc=format_desc(entry.description),
-                                    wordcount=entry.wordcount)
+                                    wordcount=entry.wordcount,
+                                    progress=format_progress('#ff0000', '#00ff00', 
+                                                             progresstemplate_part, 
+                                                             entry.current_page, 
+                                                             entry.length))
                for n,entry in enumerate(visible_entries))
     return '<hr />'.join(entries)
 
@@ -528,7 +554,9 @@ def write_metadata(entries):
         metadata = {
             'title': entry.title,
             'description': entry.description,
-            'tags': list(entry.tags)
+            'tags': list(entry.tags),
+            'length': entry.length,
+            'current_page': entry.current_page
         }
         write_json(entry.metadatafile, metadata)
 
