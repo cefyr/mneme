@@ -69,7 +69,7 @@ class IndexFrame(QtGui.QWidget):
             (t.input_term.scroll_index, self.webview.event),
             (t.list_,                   self.list_),
             (t.count_length,            self.count_length),
-            (t.external_edit,           self.external_run_entry),
+           # (t.external_edit,           self.external_run_entry),
             (t.quit,                    self.quit.emit),
             (t.show_readme,             self.show_popup.emit),
         )
@@ -440,30 +440,30 @@ class IndexFrame(QtGui.QWidget):
             self.error('Unknown argument')
 
 
-    def external_run_entry(self, arg):
-        """
-        Main external run method, called by terminal command.
-        """
-        if not arg.isdigit():
-            partialnames = [n for n, entry in enumerate(self.visible_entries)
-                            if arg.lower() in entry.title.lower()]
-            if not partialnames:
-                self.error('Entry not found: "{}"'.format(arg))
-                return
-            elif len(partialnames) > 1:
-                self.error('Ambiguous name, matches {} entries'.format(len(partialnames)))
-                return
-            elif len(partialnames) == 1:
-                arg = partialnames[0]
-        elif not int(arg) in range(len(self.visible_entries)):
-            self.error('Index out of range')
-            return
-        if not self.settings.get('editor', None):
-            self.error('No editor command defined')
-            return
-        subprocess.Popen([self.settings['editor'],
-                          self.visible_entries[int(arg)].file])
-        self.print_('Opening entry with {}'.format(self.settings['editor']))
+#    def external_run_entry(self, arg):
+#        """
+#        Main external run method, called by terminal command.
+#        """
+#        if not arg.isdigit():
+#            partialnames = [n for n, entry in enumerate(self.visible_entries)
+#                            if arg.lower() in entry.title.lower()]
+#            if not partialnames:
+#                self.error('Entry not found: "{}"'.format(arg))
+#                return
+#            elif len(partialnames) > 1:
+#                self.error('Ambiguous name, matches {} entries'.format(len(partialnames)))
+#                return
+#            elif len(partialnames) == 1:
+#                arg = partialnames[0]
+#        elif not int(arg) in range(len(self.visible_entries)):
+#            self.error('Index out of range')
+#            return
+#        if not self.settings.get('editor', None):
+#            self.error('No editor command defined')
+#            return
+#        subprocess.Popen([self.settings['editor'],
+#                          self.visible_entries[int(arg)].file])
+#        self.print_('Opening entry with {}'.format(self.settings['editor']))
 
 
 def load_html_templates():
@@ -560,7 +560,7 @@ class Terminal(GenericTerminal):
     open_ = pyqtSignal(int)
     quit = pyqtSignal(str)
     edit = pyqtSignal(str)
-    external_edit = pyqtSignal(str)
+    #external_edit = pyqtSignal(str)
     list_ = pyqtSignal(str)
     new_entry = pyqtSignal(str)
     count_length = pyqtSignal(str)
@@ -579,7 +579,7 @@ class Terminal(GenericTerminal):
             's': (self.sort, 'Sort'),
             'q': (self.quit, 'Quit'),
             '?': (self.cmd_help, 'List commands or help for [command]'),
-            'x': (self.external_edit, 'Open in external program/editor'),
+            #'x': (self.external_edit, 'Open in external program/editor'),
             'l': (self.list_, 'List'),
             'n': (self.new_entry, 'New entry'),
             'c': (self.count_length, 'Count total length'),
