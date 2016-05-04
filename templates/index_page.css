@@ -34,15 +34,13 @@ span.empty_desc {{
     font-weight: {index entry empty description font weight};
 }}
 span.tag {{
-    background-color: {index entry tag default background};
     border-radius: 3px;
     color: {index entry tag color};
-    font-family: "{index entry tag font}";
-    font-size: {index entry tag font size};
-    font-style: {index entry tag font style};
-    font-weight: {index entry tag font weight};
     margin: 0px 5px;
     padding: 2px;
+}}
+span.progress {{
+    border-radius: 3px;
 }}
 span.length {{
     color: {index entry length color};
