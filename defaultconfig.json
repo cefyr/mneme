@@ -13,12 +13,12 @@
     "reset zoom": "Ctrl+0"
   },
   "path": "",
-  "editor": "",
+  "editor": "kalpana",
   "animate terminal output": true,
-  "terminal animation interval": 5,
+  "terminal animation interval": 20,
   "tag colors": {},
   "tag macros": {},
   "formatting converters": [],
-  "chapter strings": [],
-  "entry length template": "({wordcount:,})"
+  "entry length template": "({wordcount:,})",
+  "entry progress template": "{current_page:,}/{length:,}"
 }
