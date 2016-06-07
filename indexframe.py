@@ -40,6 +40,7 @@ class IndexFrame(QtGui.QWidget):
         self.dry_run = dry_run
         self.htmltemplates = load_html_templates()
         self.css = None # Is set every time the config is reloaded
+        self.defaulttagcolor = None # Is set every time the style is reloaded
         # Hotkeys
         hotkeypairs = (
             ('reload', self.reload_view),
@@ -121,7 +122,8 @@ class IndexFrame(QtGui.QWidget):
                                   self.htmltemplates.progress,
                                   self.settings['entry length template'],
                                   self.settings['entry progress template'],
-                                  self.settings['tag colors'])
+                                  self.settings['tag colors'],
+                                  self.defaulttagcolor)
         self.webview.setHtml(self.htmltemplates.index_page.format(body=body, css=self.css))
         if keep_position:
             frame.setScrollBarValue(Qt.Vertical, pos)
@@ -152,7 +154,8 @@ class IndexFrame(QtGui.QWidget):
                 sortarg = 0
             self.old_pos = self.webview.page().mainFrame().scrollBarValue(Qt.Vertical)
             entry_template = '<div class="list_entry"><span class="tag" style="background-color:{color};">{tagname}</span><span class="length">({count:,})</span><span class="progress">[{current_page:,}/{length:,}]</span></div>'
-            t_entries = (entry_template.format(color=self.settings['tag colors'].get(tag, '#677'),
+            defcol = self.defaulttagcolor
+            t_entries = (entry_template.format(color=self.settings['tag colors'].get(tag, defcol),
                                                tagname=tag, count=num, current_page=curr_pg, length=ln)
                          for tag, num, curr_pg, ln in sorted(self.get_tags(), key=itemgetter(sortarg), reverse=sortarg))
             body = '<br>'.join(t_entries)
@@ -513,14 +516,14 @@ def index_stories(path):
     return attributes, entries
 
 
-def generate_html_body(visible_entries, tagstemplate, entrytemplate, progresstemplate_row, entrylengthtemplate, progresstemplate_part, tagcolors):
+def generate_html_body(visible_entries, tagstemplate, entrytemplate, progresstemplate_row, entrylengthtemplate, progresstemplate_part, tagcolors, deftagcolor):
     """
     Return html generated from the visible entries.
     """
     def format_tags(tags):
         return '<wbr>'.join(
             tagstemplate.format(tag=t.replace(' ', '&nbsp;').replace('-', '&#8209;'),
-                                color=tagcolors.get(t, '#677'))
+                                color=tagcolors.get(t, deftagcolor))
             for t in sorted(tags))
     def format_desc(desc):
         return desc if desc else '<span class="empty_desc">[no desc]</span>'
